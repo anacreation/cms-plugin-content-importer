@@ -17,7 +17,6 @@
 	  "Anacreation\\CmsContentImporter\\": "src/"
 	}
   },
-  "minimum-stability": "dev",
   "extra": {
 	"laravel": {
 	  "providers": [
