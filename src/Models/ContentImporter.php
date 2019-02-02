@@ -32,7 +32,6 @@ class ContentImporter
                             ContentImportersController::class . "@downloadTemplate")
                              ->name('cms:plugins:contentImporters.download');
                     });
-
             });
     }
 }

@@ -13,7 +13,7 @@ use Anacreation\Cms\Models\Permission;
 use Anacreation\Cms\Services\ContentService;
 use Anacreation\Cms\Services\TemplateParser;
 use Anacreation\CmsContentImporter\Exports\ContentExport;
-use Anacreation\CmsPageImporter\Imports\PageImport;
+use Anacreation\CmsContentImporter\Imports\PageImport;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -38,7 +38,7 @@ class ContentImportersController extends Controller
             'file' => 'required|min:0'
         ]);
 
-        $collection = Excel::toCollection(new PageImport(), $request->file)
+        $collection = Excel::toCollection(new PageImport, $request->file)
                            ->first();
 
         $errors = $this->execute($collection);
