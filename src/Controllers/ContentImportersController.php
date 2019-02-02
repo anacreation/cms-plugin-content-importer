@@ -85,10 +85,12 @@ class ContentImportersController extends Controller
         $identifiers = $service->loadPredefinedIdentifiers(null,
             Page::whereUri($data['uri'])->first()->template);
 
+        dd($identifiers);
+
         $rules = [
             'uri'           => 'required|exists:pages,uri',
             'language_code' => 'required|exists:languages,code',
-            'identifier'    => 'required|in:'.implode(",", $identifiers),
+            'identifier'    => 'required|in:'.implode(",", $identifiers->toArray()),
             'content'       => 'nullable',
         ];
 
