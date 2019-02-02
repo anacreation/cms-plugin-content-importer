@@ -91,7 +91,7 @@ class ContentImportersController extends Controller
 
             return false;
         }
-        $identifiers = $service->loadPredefinedIdentifiers(null, $template);
+        $identifiers = $service->loadPredefinedIdentifiers("", $template);
         $rules = [
             'uri'           => 'required|exists:pages,uri',
             'language_code' => 'required|exists:languages,code',
