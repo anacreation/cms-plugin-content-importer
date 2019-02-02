@@ -17,6 +17,7 @@ use Anacreation\CmsContentImporter\Imports\PageImport;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -43,7 +44,7 @@ class ContentImportersController extends Controller
 
         $errors = $this->execute($collection);
 
-        return redirect()->route('cms:plugins:content.index')
+        return redirect()->route('cms:plugins:contentImporters.index')
                          ->withStatus($collection->count() - count($errors) . " content created!")
                          ->withErrors($errors);
     }
@@ -61,7 +62,7 @@ class ContentImportersController extends Controller
         $errors = [];
 
         $collection->filter(function ($data) use (&$errors) {
-            if ($this->validateImportData($data) === false) {
+            if ($this->validateImportData($data->toArray()) === false) {
                 $errors[] = $data['uri'] ?? "No Uri Found";
 
                 return false;
@@ -78,17 +79,23 @@ class ContentImportersController extends Controller
     }
 
     private function validateImportData(array $data): bool {
-
         $layouts = getLayoutFiles()['layouts'];
 
         $service = new TemplateParser;
-        $identifiers = $service->loadPredefinedIdentifiers(null,
-            Page::whereUri($data['uri'])->first()->template);
+        try {
+            $template = Page::whereUri($data['uri'])
+                            ->firstOrFail()->template;
+        } catch (\Exception $e) {
 
+            Log::error("Not page found when importing content. uri:" . $data['uri'] . ', identifier:' . $data['identifier']);
+
+            return false;
+        }
+        $identifiers = $service->loadPredefinedIdentifiers(null, $template);
         $rules = [
             'uri'           => 'required|exists:pages,uri',
             'language_code' => 'required|exists:languages,code',
-            'identifier'    => 'required|in:'.implode(",", $identifiers),
+            'identifier'    => 'required|in:' . implode(",", $identifiers),
             'content'       => 'nullable',
         ];
 
@@ -109,6 +116,4 @@ class ContentImportersController extends Controller
                                          ->first()->idF,
         ];
     }
-
-
 }
