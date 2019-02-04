@@ -1,10 +1,18 @@
 <?php
+
 namespace Anacreation\CmsContentImporter\Services;
 
+use Anacreation\Cms\ContentModels\FileContent;
+use Anacreation\Cms\Entities\ContentObject;
+use Anacreation\Cms\Models\Language;
 use Anacreation\Cms\Models\Page;
 use Anacreation\Cms\Services\ContentService;
 use Anacreation\Cms\Services\TemplateParser;
+use Anacreation\CmsContentImporter\Entities\ImportContentDTO;
+use Anacreation\CmsContentImporter\Exceptions\ImportContentFileNotFoundException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
@@ -51,16 +59,23 @@ class ContentCreationService
             };
 
             return true;
-        })->map(function (array $data): array {
-            return [
-                'contentObject' => $this->createContentObject($data),
-                'pageUri'       => $data['uri']
-            ];
-        })->each(function ($data): void {
-            $this->service->updateOrCreateContentIndexWithContentObject(
-                Page::whereUri($data['pageUri'])->firstOrFail(),
-                $data['contentObject']);
-        });
+        })->map(function (Collection $data) use (&$errors): ?ImportContentDTO {
+            try {
+                $result = $this->createContentDTO($data->toArray());
+
+                return $result;
+            } catch (ImportContentFileNotFoundException $e) {
+                $errors[] = $e->getMessage();
+
+                return null;
+            }
+
+        })->reject(null)
+                   ->each(function (ImportContentDTO $contentDTO): void {
+                       $this->service->updateOrCreateContentIndexWithContentObject(
+                           $contentDTO->getOwner(),
+                           $contentDTO->getContentObject());
+                   });
 
         return $errors;
     }
@@ -98,6 +113,67 @@ class ContentCreationService
         $validator = Validator::make($data, $rules);
 
         return $validator->passes();
+    }
+
+    private function createContentDTO(array $data): ImportContentDTO {
+
+        $page = Page::whereUri($data['uri'])->first();
+        $languageId = Language::whereCode($data['language_code'])->first()->id;
+
+        $identifiers = $this->templateParser->loadPredefinedIdentifiers("",
+            $page->template);
+
+        $contentObject = $this->createContentObject($data, $languageId,
+            $identifiers);
+
+        $dto = (new ImportContentDTO)->setContentObject($contentObject)
+                                     ->setOwner($page);
+
+        return $dto;
+    }
+
+    /**
+     * @param array $data
+     * @param       $languageId
+     * @param array $identifiers
+     * @return ContentObject
+     * @throws \Exception
+     */
+    private function createContentObject(
+        array $data, $languageId, array $identifiers
+    ): ContentObject {
+
+        if ($this->identifierIsFileType($data, $identifiers)) {
+
+            $path = storage_path($data['content']);
+            if (File::exists($path)) {
+                $fileInfo = new \SplFileInfo($path);
+
+                $file = new UploadedFile($fileInfo->getPathname(),
+                    $fileInfo->getFilename());
+
+                $contentObject = new ContentObject($data['identifier'],
+                    $languageId,
+                    "", $identifiers[$data['identifier']]['type'], $file);
+            } else {
+                throw new ImportContentFileNotFoundException('File not found!');
+            }
+        } else {
+            $contentObject = new ContentObject($data['identifier'], $languageId,
+                $data['content'],
+                $identifiers[$data['identifier']]['type']);
+        }
+
+
+        return $contentObject;
+    }
+
+    private function identifierIsFileType(array $data, array $identifiers
+    ): bool {
+        $class = (new ContentService)->convertToContentTypeClass($identifiers[$data['identifier']]['type']);
+        $_ = new $class;
+
+        return $_ instanceof FileContent;
     }
 
 }
