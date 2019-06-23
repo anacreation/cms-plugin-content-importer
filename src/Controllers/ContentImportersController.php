@@ -28,7 +28,7 @@ class ContentImportersController extends Controller
      * @return mixed
      */
     public function load(Request $request, ContentCreationService $service) {
-        
+
         $this->validate($request, [
             'file' => 'required|min:0'
         ]);

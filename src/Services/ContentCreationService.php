@@ -3,6 +3,7 @@
 namespace Anacreation\CmsContentImporter\Services;
 
 use Anacreation\Cms\ContentModels\FileContent;
+use Anacreation\Cms\Contracts\CmsPageInterface;
 use Anacreation\Cms\Entities\ContentObject;
 use Anacreation\Cms\Models\Language;
 use Anacreation\Cms\Models\Page;
@@ -40,6 +41,12 @@ class ContentCreationService
         $this->templateParser = $templateParser;
 
         $this->service = $service;
+
+        Validator::extend('hasPageUri', function ($attribute, $value, $input) {
+
+            return !!$this->findPage($this->sanitizedUri($value));
+
+        });
     }
 
 
@@ -91,19 +98,19 @@ class ContentCreationService
      * @return bool
      */
     private function validateImportData(array $data): bool {
-        try {
-            $template = Page::whereUri($data['uri'])
-                            ->firstOrFail()->template;
-        } catch (\Exception $e) {
 
+        $sanitizedUri = $this->sanitizedUri($data['uri']);
+        $template = $this->getPageTemplate($sanitizedUri);
+        if (is_null($template)) {
             Log::error("Not page found when importing content. uri:" . $data['uri'] . ', identifier:' . $data['identifier']);
 
             return false;
         }
+
         $identifiers = $this->templateParser->loadPredefinedIdentifiers("",
             $template);
         $rules = [
-            'uri'           => 'required|exists:pages,uri',
+            'uri'           => 'required|hasPageUri',
             'language_code' => 'required|exists:languages,code',
             'identifier'    => 'required|in:' . implode(",",
                     array_keys($identifiers)),
@@ -117,7 +124,9 @@ class ContentCreationService
 
     private function createContentDTO(array $data): ImportContentDTO {
 
-        $page = Page::whereUri($data['uri'])->first();
+        $sanitizedUri = $this->sanitizedUri($data['uri']);
+
+        $page = $this->findPage($sanitizedUri);
         $languageId = Language::whereCode($data['language_code'])->first()->id;
 
         $identifiers = $this->templateParser->loadPredefinedIdentifiers("",
@@ -174,6 +183,40 @@ class ContentCreationService
         $_ = new $class;
 
         return $_ instanceof FileContent;
+    }
+
+    private function sanitizedUri(string $uri): string {
+        $result = str_replace(config('app.url'), '', $uri);
+
+        $firstChar = mb_substr($result, 0, 1, "UTF-8");
+
+        if ($firstChar === "/") {
+            return substr($result, 1);
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param string $sanitizedUri
+     * @return mixed
+     */
+    private function getPageTemplate(string $sanitizedUri): ?string {
+        if ($page = $this->findPage($sanitizedUri)) {
+            $template = $page->template;
+
+            return $template;
+        }
+
+
+        return null;
+    }
+
+    private function findPage(string $sanitizedUri): ?CmsPageInterface {
+        $allPages = app(CmsPageInterface::class)->getAllPages();
+
+        return $allPages[$sanitizedUri] ?? null;
+
     }
 
 }
