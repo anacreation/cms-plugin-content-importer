@@ -6,7 +6,6 @@ use Anacreation\Cms\ContentModels\FileContent;
 use Anacreation\Cms\Contracts\CmsPageInterface;
 use Anacreation\Cms\Entities\ContentObject;
 use Anacreation\Cms\Models\Language;
-use Anacreation\Cms\Models\Page;
 use Anacreation\Cms\Services\ContentService;
 use Anacreation\Cms\Services\TemplateParser;
 use Anacreation\CmsContentImporter\Entities\ImportContentDTO;
@@ -191,7 +190,11 @@ class ContentCreationService
         $firstChar = mb_substr($result, 0, 1, "UTF-8");
 
         if ($firstChar === "/") {
-            return substr($result, 1);
+            $result = substr($result, 1);
+        }
+
+        if (empty($result)) {
+            $result = "/";
         }
 
         return $result;
