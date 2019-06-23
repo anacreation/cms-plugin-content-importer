@@ -41,7 +41,9 @@ class CmsContentImporterServiceProvider extends ServiceProvider
     }
 
     private function registerCmsPlugin(): void {
-        Cms::registerCmsPlugins('CmsContentImporter', 'Import Content',
+        Cms::registerCmsPlugins(
+            'CmsContentImporter',
+            'Cms Import Content',
             'contentImporter');
         Cms::registerCmsPluginRoutes('CmsContentImporter', function () {
             ContentImporter::routes();

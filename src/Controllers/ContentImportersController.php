@@ -8,22 +8,16 @@
 namespace Anacreation\CmsContentImporter\Controllers;
 
 
-use Anacreation\Cms\Models\Page;
-use Anacreation\Cms\Models\Permission;
-use Anacreation\Cms\Services\ContentService;
-use Anacreation\Cms\Services\TemplateParser;
 use Anacreation\CmsContentImporter\Exports\ContentExport;
 use Anacreation\CmsContentImporter\Imports\PageImport;
+use Anacreation\CmsContentImporter\Services\ContentCreationService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ContentImportersController extends Controller
 {
-    public function index(Request $request, ContentService $service) {
+    public function index() {
 
         return view('cms:contentImporter::index');
     }
@@ -33,7 +27,7 @@ class ContentImportersController extends Controller
      * @param \Anacreation\Cms\Services\ContentService $service
      * @return mixed
      */
-    public function load(Request $request, ContentService $service) {
+    public function load(Request $request, ContentCreationService $service) {
 
         $this->validate($request, [
             'file' => 'required|min:0'
@@ -42,7 +36,7 @@ class ContentImportersController extends Controller
         $collection = Excel::toCollection(new PageImport, $request->file)
                            ->first();
 
-        $errors = $this->execute($collection);
+        $errors = $service->create($collection);
 
         return redirect()->route('cms:plugins:contentImporters.index')
                          ->withStatus($collection->count() - count($errors) . " content created!")
@@ -53,67 +47,4 @@ class ContentImportersController extends Controller
         return Excel::download(new ContentExport, 'import_pages_template.xls');
     }
 
-    /**
-     * @param \Illuminate\Support\Collection $collection
-     * @return array
-     */
-    private function execute(Collection $collection): array {
-
-        $errors = [];
-
-        $collection->filter(function ($data) use (&$errors) {
-            if ($this->validateImportData($data->toArray()) === false) {
-                $errors[] = $data['uri'] ?? "No Uri Found";
-
-                return false;
-            };
-
-            return true;
-        })->map(function (array $data) {
-            return $this->transferData($data);
-        })->each(function ($data) {
-            Page::create($data);
-        });
-
-        return $errors;
-    }
-
-    private function validateImportData(array $data): bool {
-        $layouts = getLayoutFiles()['layouts'];
-
-        $service = new TemplateParser;
-        try {
-            $template = Page::whereUri($data['uri'])
-                            ->firstOrFail()->template;
-        } catch (\Exception $e) {
-
-            Log::error("Not page found when importing content. uri:" . $data['uri'] . ', identifier:' . $data['identifier']);
-
-            return false;
-        }
-        $identifiers = $service->loadPredefinedIdentifiers("", $template);
-        $rules = [
-            'uri'           => 'required|exists:pages,uri',
-            'language_code' => 'required|exists:languages,code',
-            'identifier'    => 'required|in:' . implode(",", $identifiers),
-            'content'       => 'nullable',
-        ];
-
-        $validator = Validator::make($data, $rules);
-
-        return $validator->passes();
-    }
-
-    private function transferData(array $data) {
-        return [
-            'uri'           => $data['uri'],
-            'template'      => $data['template'],
-            'has_children'  => $data['has_children'],
-            'is_active'     => $data['is_active'],
-            'is_restricted' => $data['is_restricted'],
-            'order'         => $data['order'],
-            'permission_id' => Permission::whereCode($data['code'])
-                                         ->first()->idF,
-        ];
-    }
 }
