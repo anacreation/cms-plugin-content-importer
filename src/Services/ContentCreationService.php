@@ -65,18 +65,21 @@ class ContentCreationService
             };
 
             return true;
-        })->map(function (Collection $data) use (&$errors): ?ImportContentDTO {
-            try {
-                $result = $this->createContentDTO($data->toArray());
+        })
+                   ->map(function (Collection $data) use (&$errors
+                   ): ?ImportContentDTO {
+                       try {
+                           $result = $this->createContentDTO($data->toArray());
 
-                return $result;
-            } catch (ImportContentFileNotFoundException $e) {
-                $errors[] = $e->getMessage();
+                           return $result;
+                       } catch (ImportContentFileNotFoundException $e) {
+                           $errors[] = $e->getMessage();
 
-                return null;
-            }
+                           return null;
+                       }
 
-        })->reject(null)
+                   })
+                   ->reject(null)
                    ->each(function (ImportContentDTO $contentDTO): void {
                        $this->service->updateOrCreateContentIndexWithContentObject(
                            $contentDTO->getOwner(),
