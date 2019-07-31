@@ -10,11 +10,15 @@ use Anacreation\Cms\Services\ContentService;
 use Anacreation\Cms\Services\TemplateParser;
 use Anacreation\CmsContentImporter\Entities\ImportContentDTO;
 use Anacreation\CmsContentImporter\Exceptions\ImportContentFileNotFoundException;
+use Anacreation\CmsContentImporter\Imports\PageImport;
+use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Maatwebsite\Excel\Facades\Excel;
+use Maatwebsite\Excel\HeadingRowImport;
 
 /**
  * Author: Xavier Au
@@ -28,6 +32,7 @@ class ContentCreationService
      */
     private $templateParser;
     private $service;
+    public $headerError = false;
 
     /**
      * ContentCreationService constructor.
@@ -48,42 +53,85 @@ class ContentCreationService
         });
     }
 
+    public function import(UploadedFile $file): Collection {
+
+        $this->validateHeaders($file);
+
+        if ($this->headerError === false) {
+
+            $result = $this->create($file);
+
+            $this->logErrors($result);
+
+            return $result;
+        };
+
+        return collect([]);
+    }
+
+    public function validateHeaders(UploadedFile $file
+    ) {
+
+        $headings = (new HeadingRowImport)->toArray($file);
+
+        $headings = array_filter($headings[0][0], function ($item) {
+            return !empty($item);
+        });
+
+        $this->headerError = !($headings == [
+                "uri",
+                "language_code",
+                "identifier",
+                "content",
+            ]);
+
+    }
+
 
     /**
      * @param \Illuminate\Support\Collection $collection
      * @return array
      */
-    public function create(Collection $collection): array {
-
+    private function create(UploadedFile $file): Collection {
         $errors = [];
+
+        $collection = Excel::toCollection(new PageImport, $file)
+                           ->first();
 
         $collection->filter(function ($data) use (&$errors): bool {
             if ($this->validateImportData($data->toArray()) === false) {
-                $errors[] = $data['uri'] ?? "No Uri Found";
+                $errors[] = "Uri:" . $data['uri'] . '|Identifier:' . $data['identifier'] . '|Language:' . $data['language_code'] ?? "No Uri Found";
 
                 return false;
             };
 
             return true;
-        })->map(function (Collection $data) use (&$errors): ?ImportContentDTO {
-            try {
-                $result = $this->createContentDTO($data->toArray());
+        })
+                   ->map(function (Collection $data) use (&$errors
+                   ): ?ImportContentDTO {
+                       try {
+                           $result = $this->createContentDTO($data->toArray());
 
-                return $result;
-            } catch (ImportContentFileNotFoundException $e) {
-                $errors[] = $e->getMessage();
+                           return $result;
+                       } catch (ImportContentFileNotFoundException $e) {
+                           $errors[] = $e->getMessage();
 
-                return null;
-            }
+                           return null;
+                       }
 
-        })->reject(null)
+                   })
+                   ->reject(null)
                    ->each(function (ImportContentDTO $contentDTO): void {
                        $this->service->updateOrCreateContentIndexWithContentObject(
                            $contentDTO->getOwner(),
                            $contentDTO->getContentObject());
                    });
 
-        return $errors;
+        return collect([
+            'count'  => $collection->count(),
+            'errors' => $errors,
+        ]);
+
     }
 
     /**
@@ -101,7 +149,7 @@ class ContentCreationService
         $sanitizedUri = $this->sanitizedUri($data['uri']);
         $template = $this->getPageTemplate($sanitizedUri);
         if (is_null($template)) {
-            Log::error("Not page found when importing content. uri:" . $data['uri'] . ', identifier:' . $data['identifier']);
+            Log::info("Not page found when importing content. uri:" . $data['uri'] . ', identifier:' . $data['identifier']);
 
             return false;
         }
@@ -220,6 +268,24 @@ class ContentCreationService
 
         return $allPages[$sanitizedUri] ?? null;
 
+    }
+
+    /**
+     * @param $result
+     */
+    private function logErrors($result): void {
+        $filename = 'content-import_' . Carbon::now()
+                                              ->toDateTimeLocalString() . ".log";
+        Log::useFiles(storage_path('logs/' . $filename), 'info');
+
+        $errors = $result->get('errors');
+        if ($errors === 0) {
+            Log::info("No error");
+        } else {
+            foreach ($errors as $error) {
+                Log::info($error);
+            }
+        }
     }
 
 }

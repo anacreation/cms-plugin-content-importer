@@ -3,6 +3,8 @@
 namespace Anacreation\CmsContentImporter;
 
 use Anacreation\Cms\Models\Cms;
+use Anacreation\Cms\Plugin\Plugin;
+use Anacreation\CmsContentImporter\Commands\ContentImporterTestCommand;
 use Anacreation\CmsContentImporter\Models\ContentImporter;
 use Illuminate\Support\ServiceProvider;
 
@@ -15,20 +17,8 @@ class CmsContentImporterServiceProvider extends ServiceProvider
      * @return void
      */
     public function boot() {
-
         $this->views();
-
         $this->registerCmsPlugin();
-
-    }
-
-    /**
-     * Register any application services.
-     *
-     * @return void
-     */
-    public function register() {
-
     }
 
     private function views() {
@@ -41,13 +31,13 @@ class CmsContentImporterServiceProvider extends ServiceProvider
     }
 
     private function registerCmsPlugin(): void {
-        Cms::registerCmsPlugins(
-            'CmsContentImporter',
-            'Cms Import Content',
-            'contentImporter');
-        Cms::registerCmsPluginRoutes('CmsContentImporter', function () {
-            ContentImporter::routes();
-        });
+        Cms::registerPlugin((new Plugin("CmsContentImporter"))
+            ->setEntryPath('contentImporter', "Cms Import Content")
+            ->setRoutes(ContentImporter::routes())
+            ->setCommands([
+                ContentImporterTestCommand::class
+            ])
+            ->setScheduleFunction(ContentImporter::schedule()));
     }
 
 }

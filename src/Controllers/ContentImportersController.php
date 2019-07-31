@@ -9,10 +9,10 @@ namespace Anacreation\CmsContentImporter\Controllers;
 
 
 use Anacreation\CmsContentImporter\Exports\ContentExport;
-use Anacreation\CmsContentImporter\Imports\PageImport;
 use Anacreation\CmsContentImporter\Services\ContentCreationService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ContentImportersController extends Controller
@@ -30,21 +30,50 @@ class ContentImportersController extends Controller
     public function load(Request $request, ContentCreationService $service) {
 
         $this->validate($request, [
-            'file' => 'required|min:0'
+            'file' => 'required|min:0|mimes:csv,txt'
         ]);
 
-        $collection = Excel::toCollection(new PageImport, $request->file)
-                           ->first();
+        $result = $service->import($request->file);
 
-        $errors = $service->create($collection);
+        $msg = $service->headerError ?
+            "The file header is not correct! Please verify." :
+            'Total number of rows: ' . $result->get('count') . ". <br> " . ($result->get('count') - count($result->get('errors'))) . " rows of content was successfully created!";
+
 
         return redirect()->route('cms:plugins:contentImporters.index')
-                         ->withStatus($collection->count() - count($errors) . " content created!")
-                         ->withErrors($errors);
+                         ->withStatus($msg)
+                         ->withErrors($result->get('errors'));
     }
 
     public function downloadTemplate() {
         return Excel::download(new ContentExport, 'import_pages_template.xls');
+    }
+
+    public function getLatestLog() {
+
+        $files = File::files(storage_path('logs'));
+
+        $files = array_values(
+            array_reverse(
+                array_sort(
+                    array_filter(
+                        $files,
+                        function (\SplFileInfo $fileInfo) {
+                            return strpos($fileInfo->getFilename(),
+                                    'content-import') !== false;
+                        }),
+                    function (\SplFileInfo $file) {
+                        return $file->getMTime();
+                    })));
+
+        if (isset($files[0])) {
+            $path = $files[0]->getPathname();
+
+            return view('cms:contentImporter::log', compact('path'));
+        }
+
+        return redirect()->back()->withStatus("Not log available");
+
     }
 
 }
