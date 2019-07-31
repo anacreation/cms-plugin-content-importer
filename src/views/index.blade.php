@@ -7,9 +7,15 @@
 			<div class="card-header">
 				<div class="col d-flex justify-content-between">
 					<h3 class="m-0">Content Importer</h3>
-					<a href="{{route('cms:plugins:contentImporters.download')}}"
-					   class="btn btn-sm btn-primary "
-					   target="_blank">Download template file</a>
+					<div>
+						<a href="{{route('cms:plugins:contentImporters.download')}}"
+						   class="btn btn-sm btn-primary "
+						   target="_blank">Download template file</a>
+					<a href="{{route('cms:plugins:contentImporters.latest_log')}}"
+					   class="btn btn-sm btn-info"
+					   target="_blank">Show Latest Log</a>
+					</div>
+					
 				</div>
 			</div>
 			<div class="card-body">
@@ -22,6 +28,7 @@
 				<div class="form-group">
 					{{Form::label('file','File: ',['class'=>'form-label'])}}
 					{{Form::file('file',['class'=>$errors->has('file')?"form-control is-invalid":"form-control","required"])}}
+					<small class="helper"><em>.csv file only</em></small>
 					@if ($errors->has('file'))
 						<span class="invalid-feedback">
 				          <strong>{{ $errors->first('file') }}</strong>

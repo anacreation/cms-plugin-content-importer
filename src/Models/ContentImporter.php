@@ -30,6 +30,11 @@ class ContentImporter
                             Route::post('/',
                                 ContentImportersController::class . "@load")
                                  ->name('cms:plugins:contentImporters.action');
+
+                            Route::get('/latest_log',
+                                ContentImportersController::class . "@getLatestLog")
+                                 ->name('cms:plugins:contentImporters.latest_log');
+
                             Route::get('/download',
                                 ContentImportersController::class . "@downloadTemplate")
                                  ->name('cms:plugins:contentImporters.download');
